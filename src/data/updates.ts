@@ -13,6 +13,17 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    version: "v1.7.0",
+    date: "October 25, 2026",
+    title: "AI Blog Studio for super admins",
+    kind: "feature",
+    items: [
+      { kind: "feature", text: "Brainstorm article ideas by chatting with Clinexus AI." },
+      { kind: "feature", text: "Generate a full draft with a cover image in one click." },
+      { kind: "feature", text: "Edit, publish or unpublish AI articles; published ones appear on the public blog." },
+    ],
+  },
+  {
     version: "v1.6.3",
     date: "October 25, 2026",
     title: "Case credits explained, now ₦1,000 per case",
