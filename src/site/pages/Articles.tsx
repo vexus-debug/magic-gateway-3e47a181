@@ -11,6 +11,7 @@ import {
   type Article,
 } from "@/site/data/articles";
 import { cn } from "@/lib/utils";
+import { usePublishedArticles } from "@/site/data/usePublishedArticles";
 
 const Meta = ({ article }: { article: Article }) => (
   <p className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -43,7 +44,7 @@ const Articles = () => {
   const category = getCategory(categoryParam);
   const [query, setQuery] = useState("");
 
-  const all = sortedArticles();
+  const { articles: all } = usePublishedArticles();
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return all.filter(

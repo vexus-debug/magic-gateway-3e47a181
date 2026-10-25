@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import Layout from "@/site/components/Layout";
-import { formatArticleDate, getArticle, getCategory, relatedArticles, type ArticleBlock } from "@/site/data/articles";
+import { formatArticleDate, getArticle, getCategory, type ArticleBlock } from "@/site/data/articles";
+import { usePublishedArticles } from "@/site/data/usePublishedArticles";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -43,7 +44,8 @@ const Block = ({ block }: { block: ArticleBlock }) => {
 
 const ArticleDetail = () => {
   const { slug } = useParams();
-  const article = getArticle(slug);
+  const { articles: all, loaded } = usePublishedArticles();
+  const article = getArticle(slug) ?? all.find((a) => a.slug === slug);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -60,10 +62,13 @@ const ArticleDetail = () => {
     if (article) document.title = `${article.title} | Clinexus Articles`;
   }, [article]);
 
-  if (!article) return <Navigate to="/articles" replace />;
+  if (!article) return loaded ? <Navigate to="/articles" replace /> : <Layout><div className="min-h-screen" /></Layout>;
   const category = getCategory(article.category);
   const toc = article.body.filter((b): b is Extract<ArticleBlock, { type: "h2" }> => b.type === "h2");
-  const related = relatedArticles(article);
+  const related = all
+    .filter((a) => a.slug !== article.slug)
+    .sort((a, b) => Number(b.category === article.category) - Number(a.category === article.category))
+    .slice(0, 3);
 
   return (
     <Layout>
