@@ -5,7 +5,20 @@ const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 const CHAT_MODEL = "openai/gpt-6-astra";
 const IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
 const BUCKET = "article-covers";
-const CATEGORIES = ["practice", "marketing", "dental", "eye-care", "laboratory", "technology"] as const;
+export const CATEGORIES = ["practice", "marketing", "dental", "eye-care", "laboratory", "technology"] as const;
+
+/** Asks the AI for a fresh, SEO-worthy brief in a category, avoiding existing titles. */
+export async function planAutoBrief(category: string, existingTitles: string[]) {
+  const text = await respond({
+    instructions: `You are the Clinexus content strategist.
+${CLINEXUS_BRIEF}
+Propose ONE new blog article brief for the "${category}" category in 3-5 sentences: a working title, the one reader it speaks to, the search keyword they'd type into Google, the angle and key points. It must help that reader genuinely and position Clinexus as the expert. Do not repeat these existing titles:
+${existingTitles.map((t) => `- ${t}`).join("\n") || "(none)"}`,
+    input: [{ role: "user", content: `Today's ${category} article brief.` }],
+    reasoning: { effort: "low" },
+  });
+  return text.trim();
+}
 
 const CLINEXUS_BRIEF = `ABOUT CLINEXUS (use this knowledge accurately; never invent features):
 Clinexus is a cloud clinic management platform for dental clinics, eye clinics / optometry, diagnostic laboratories and dental labs, serving clinics in Nigeria and beyond.
