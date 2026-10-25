@@ -30,6 +30,48 @@ const token = async () => {
 };
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
 
+function Autopilot() {
+  const qc = useQueryClient();
+  const { data: s } = useQuery({
+    queryKey: ["blog-autopilot"],
+    queryFn: async () => (await (supabase as any).from("blog_autopilot").select("*").eq("id", 1).maybeSingle()).data,
+  });
+  if (!s) return null;
+  const url = `${window.location.origin}/api/public/blog-autopilot?secret=${s.cron_token}`;
+  const save = async (patch: Record<string, unknown>) => {
+    const { error } = await (supabase as any).from("blog_autopilot").update(patch).eq("id", 1);
+    if (error) toast({ title: "Couldn't save", description: error.message, variant: "destructive" });
+    qc.invalidateQueries({ queryKey: ["blog-autopilot"] });
+  };
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-semibold">Daily autopilot {s.enabled ? <Badge>On</Badge> : <Badge variant="secondary">Off</Badge>}</p>
+            <p className="text-muted-foreground">Writes and publishes one article per category every day, with photos.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => save({ enabled: !s.enabled })}>{s.enabled ? "Turn off" : "Turn on"}</Button>
+        </div>
+        {s.paused_reason && (
+          <div className="flex items-center justify-between gap-2 rounded-md bg-destructive/10 p-2 text-destructive">
+            <span>Paused: {s.paused_reason}</span>
+            <Button size="sm" variant="outline" onClick={() => save({ paused_reason: null })}>Resume</Button>
+          </div>
+        )}
+        {s.last_run_at && <p className="text-muted-foreground">Last run {format(new Date(s.last_run_at), "PPp")}: {s.last_result}</p>}
+        <div>
+          <Label>Scheduler link — set a free scheduler (e.g. cron-job.org) to open this every hour</Label>
+          <div className="mt-1 flex gap-2">
+            <Input readOnly value={url} className="font-mono text-xs" />
+            <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(url); toast({ title: "Copied" }); }}>Copy</Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminArticles() {
   const [tab, setTab] = useState("studio");
   const [editing, setEditing] = useState<string | null>(null);
@@ -39,6 +81,7 @@ export default function AdminArticles() {
         <h1 className="text-2xl font-bold tracking-tight">Blog Studio</h1>
         <p className="text-sm text-muted-foreground">Brainstorm ideas with Clinexus AI, generate drafts with cover images, review and publish.</p>
       </div>
+      <Autopilot />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="studio">Idea chat</TabsTrigger>

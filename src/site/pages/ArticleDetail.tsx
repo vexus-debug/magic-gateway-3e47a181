@@ -8,6 +8,23 @@ import { usePublishedArticles } from "@/site/data/usePublishedArticles";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
+const Cta = ({ compact }: { compact?: boolean }) => (
+  <aside className={`not-prose rounded-lg border border-primary/30 bg-primary/10 ${compact ? "my-10 p-5" : "mt-14 p-7"}`}>
+    <p className={`font-semibold text-foreground ${compact ? "text-lg" : "text-2xl"}`}>
+      {compact ? "Want this running in your clinic this week?" : "Ready to run a calmer, more profitable clinic?"}
+    </p>
+    <p className="mt-2 text-muted-foreground">
+      {compact
+        ? "Clinexus handles appointments, records, billing and stock in one place."
+        : "Join clinics using Clinexus to manage patients, payments, labs and staff — set up in minutes."}
+    </p>
+    <div className="mt-4 flex flex-wrap gap-3">
+      <a href="/app/signup" className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">Start free</a>
+      {!compact && <Link to="/contact" className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted">Talk to us</Link>}
+    </div>
+  </aside>
+);
+
 const Block = ({ block }: { block: ArticleBlock }) => {
   switch (block.type) {
     case "h2":
@@ -101,7 +118,13 @@ const ArticleDetail = () => {
 
         <div className="container mt-12 grid max-w-5xl gap-12 lg:grid-cols-[1fr_200px]">
           <div className="max-w-[68ch] text-[1.05rem] leading-[1.75] text-foreground/85">
-            {article.body.map((b, i) => <Block key={i} block={b} />)}
+            {article.body.map((b, i) => (
+              <div key={i}>
+                {b.type === "h2" && i > 0 && b === toc[Math.floor(toc.length / 2)] && <Cta compact />}
+                <Block block={b} />
+              </div>
+            ))}
+            <Cta />
           </div>
           {toc.length > 1 && (
             <aside className="hidden lg:block">

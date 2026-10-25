@@ -5,7 +5,20 @@ const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 const CHAT_MODEL = "openai/gpt-6-astra";
 const IMAGE_MODEL = "openai/gpt-image-2.5-sunburst";
 const BUCKET = "article-covers";
-const CATEGORIES = ["practice", "marketing", "dental", "eye-care", "laboratory", "technology"] as const;
+export const CATEGORIES = ["practice", "marketing", "dental", "eye-care", "laboratory", "technology"] as const;
+
+/** Asks the AI for a fresh, SEO-worthy brief in a category, avoiding existing titles. */
+export async function planAutoBrief(category: string, existingTitles: string[]) {
+  const text = await respond({
+    instructions: `You are the Clinexus content strategist.
+${CLINEXUS_BRIEF}
+Propose ONE new blog article brief for the "${category}" category in 3-5 sentences: a working title, the one reader it speaks to, the search keyword they'd type into Google, the angle and key points. It must help that reader genuinely and position Clinexus as the expert. Do not repeat these existing titles:
+${existingTitles.map((t) => `- ${t}`).join("\n") || "(none)"}`,
+    input: [{ role: "user", content: `Today's ${category} article brief.` }],
+    reasoning: { effort: "low" },
+  });
+  return text.trim();
+}
 
 const CLINEXUS_BRIEF = `ABOUT CLINEXUS (use this knowledge accurately; never invent features):
 Clinexus is a cloud clinic management platform for dental clinics, eye clinics / optometry, diagnostic laboratories and dental labs, serving clinics in Nigeria and beyond.
@@ -241,51 +254,84 @@ async function uploadCover(supabaseAdmin: any, slug: string, bytes: Uint8Array) 
   return supabaseAdmin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl as string;
 }
 
+export const WRITER_INSTRUCTIONS = `You write long-form blog articles for the Clinexus website.
+${CLINEXUS_BRIEF}
+
+VOICE: Write as if talking directly to ONE person — a single clinic owner or manager reading over a cup of tea. Use "you" and "your clinic", short sentences, warm and human, a little empathy for their daily pressures ("If you've ever had a patient walk out of a full waiting room..."). Friendly, never salesy, never robotic.
+GOAL: Subtly establish Clinexus as the trusted authority on running modern clinics and labs: share genuinely expert, practical insight, real numbers and frameworks, so the reader trusts Clinexus. Mention Clinexus naturally 2-3 times where it truly solves the problem — never hard-sell.
+SEO: Pick one clear primary keyword phrase a clinic owner would search (e.g. "dental clinic management software Nigeria") and use it in the title, the first paragraph, at least one h2 and the closing section. Use related secondary keywords naturally. Title under 65 characters. h2s should read like questions or benefits people search for. Include a short FAQ section near the end (h2 "Frequently asked questions" followed by h3 questions with p answers).
+
+Write a complete, original, 1300-1800 word article from the brief. Structure: an engaging opening, 5-7 "h2" sections with paragraphs, at least one "list", one or two "tip" blocks (title like "In practice"), the FAQ, and a closing section. Use only block types p, h2, h3, list, tip, quote; set unused fields to null. Excerpt: 1-2 sentences, under 160 characters, containing the primary keyword (it becomes the meta description). imagePrompt: a vivid cover photo description. sectionImagePrompts: exactly 2 vivid photo descriptions illustrating different later sections (people and setting, no text).`;
+
+export async function writeArticle(
+  supabaseAdmin: any,
+  opts: { brief: string; category?: string | null; status: "draft" | "published"; userId?: string | null; auto?: boolean },
+) {
+  const schema = {
+    ...articleJsonSchema,
+    required: [...articleJsonSchema.required, "sectionImagePrompts"],
+    properties: { ...articleJsonSchema.properties, sectionImagePrompts: { type: "array", items: { type: "string" } } },
+  };
+  const text = await respond({
+    instructions: `${WRITER_INSTRUCTIONS}${opts.category ? ` Category must be "${opts.category}".` : ""}`,
+    input: [{ role: "user", content: opts.brief }],
+    reasoning: { effort: "medium" },
+    text: { format: { type: "json_schema", name: "article", strict: true, schema } },
+  });
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("The AI returned an incomplete article. Please try again.");
+  }
+  const body: any[] = normaliseBody(parsed.body ?? []);
+  let slug = slugify(parsed.title);
+  const { data: clash } = await supabaseAdmin.from("blog_articles").select("id").eq("slug", slug).maybeSingle();
+  if (clash) slug = `${slug}-${Date.now().toString(36)}`;
+
+  const prompts: string[] = [parsed.imagePrompt, ...((parsed.sectionImagePrompts ?? []) as string[]).slice(0, 2)];
+  const urls: (string | null)[] = [];
+  for (const [i, p] of prompts.entries()) {
+    const bytes = await generateCover(p);
+    urls.push(bytes ? await uploadCover(supabaseAdmin, `${slug}-${i}`, bytes) : null);
+  }
+  const [coverUrl, ...inline] = urls;
+  // Place inline photos just before the 3rd and 5th h2 sections.
+  const h2Idx = body.map((b, i) => (b.type === "h2" ? i : -1)).filter((i) => i >= 0);
+  const spots = [h2Idx[2], h2Idx[4]];
+  inline
+    .map((src, i) => ({ src, at: spots[i], alt: prompts[i + 1] }))
+    .filter((x) => x.src && x.at !== undefined)
+    .sort((a, b) => b.at! - a.at!)
+    .forEach((x) => body.splice(x.at!, 0, { type: "image", src: x.src, alt: x.alt.slice(0, 140) }));
+
+  const { data: row, error } = await supabaseAdmin
+    .from("blog_articles")
+    .insert({
+      slug,
+      title: parsed.title,
+      excerpt: parsed.excerpt,
+      category: opts.category || parsed.category,
+      body,
+      cover_url: coverUrl,
+      read_minutes: readMinutes(body),
+      status: opts.status,
+      published_at: opts.status === "published" ? new Date().toISOString() : null,
+      prompt: opts.brief,
+      created_by: opts.userId ?? null,
+      auto_generated: !!opts.auto,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return { id: (row as any).id as string, coverFailed: !coverUrl };
+}
+
 export const generateArticleDraft = createServerFn({ method: "POST" })
   .inputValidator((d) => genSchema.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin, userId } = await requireSuperAdmin(data.token);
-    const text = await respond({
-      instructions: `You write long-form blog articles for the Clinexus website.
-${CLINEXUS_BRIEF}
-
-Write a complete, original, 1100-1600 word article from the brief. Structure: an engaging opening paragraph, 4-6 "h2" sections with paragraphs, at least one "list", one or two "tip" blocks (title like "In practice"), and a closing section explaining how Clinexus helps. Use only block types p, h2, h3, list, tip, quote; set unused fields to null. Excerpt: 1-2 sentences, under 200 characters. imagePrompt: a vivid description of a cover photo matching the article (people and setting, no text).${data.category ? ` Category must be "${data.category}".` : ""}`,
-      input: [{ role: "user", content: data.brief }],
-      reasoning: { effort: "medium" },
-      text: { format: { type: "json_schema", name: "article", strict: true, schema: articleJsonSchema } },
-    });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new Error("The AI returned an incomplete article. Please try again.");
-    }
-    const body = normaliseBody(parsed.body ?? []);
-    let slug = slugify(parsed.title);
-    const { data: clash } = await supabaseAdmin.from("blog_articles" as any).select("id").eq("slug", slug).maybeSingle();
-    if (clash) slug = `${slug}-${Date.now().toString(36)}`;
-
-    const bytes = await generateCover(parsed.imagePrompt);
-    const coverUrl = bytes ? await uploadCover(supabaseAdmin, slug, bytes) : null;
-
-    const { data: row, error } = await supabaseAdmin
-      .from("blog_articles" as any)
-      .insert({
-        slug,
-        title: parsed.title,
-        excerpt: parsed.excerpt,
-        category: data.category || parsed.category,
-        body,
-        cover_url: coverUrl,
-        read_minutes: readMinutes(body),
-        status: "draft",
-        prompt: data.brief,
-        created_by: userId,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    return { id: (row as any).id as string, coverFailed: !coverUrl };
+    return writeArticle(supabaseAdmin, { brief: data.brief, category: data.category, status: "draft", userId });
   });
 
 // ─────────────── Regenerate cover ───────────────
