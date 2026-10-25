@@ -15,16 +15,15 @@ export const Route = createFileRoute("/api/public/blog-autopilot")({
 });
 
 async function run(request: Request) {
-  const secret = process.env.BLOG_CRON_SECRET;
   const given = request.headers.get("x-cron-secret") ?? new URL(request.url).searchParams.get("secret");
-  if (!secret || given !== secret) return new Response("Unauthorized", { status: 401 });
+  if (!given || given.length < 20) return new Response("Unauthorized", { status: 401 });
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { CATEGORIES, planAutoBrief, writeArticle } = await import("@/lib/blogAi.functions");
   const db = supabaseAdmin as any;
-
   const { data: state } = await db.from("blog_autopilot").select("*").eq("id", 1).single();
-  if (!state?.enabled) return Response.json({ skipped: "disabled" });
+  if (!state || state.cron_token !== given) return new Response("Unauthorized", { status: 401 });
+  const { CATEGORIES, planAutoBrief, writeArticle } = await import("@/lib/blogAi.functions");
+  if (!state.enabled) return Response.json({ skipped: "disabled" });
   if (state.paused_reason) return Response.json({ skipped: "paused", reason: state.paused_reason });
 
   // Single-flight lock (20 min lease)
