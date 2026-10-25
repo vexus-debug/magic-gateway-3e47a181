@@ -101,7 +101,13 @@ const ArticleDetail = () => {
 
         <div className="container mt-12 grid max-w-5xl gap-12 lg:grid-cols-[1fr_200px]">
           <div className="max-w-[68ch] text-[1.05rem] leading-[1.75] text-foreground/85">
-            {article.body.map((b, i) => <Block key={i} block={b} />)}
+            {article.body.map((b, i) => (
+              <div key={i}>
+                {b.type === "h2" && i === toc[Math.floor(toc.length / 2)] && <Cta compact />}
+                <Block block={b} />
+              </div>
+            ))}
+            <Cta />
           </div>
           {toc.length > 1 && (
             <aside className="hidden lg:block">
