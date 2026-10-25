@@ -257,6 +257,7 @@ export type Database = {
       }
       blog_articles: {
         Row: {
+          auto_generated: boolean
           body: Json
           category: string
           cover_url: string | null
@@ -273,6 +274,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_generated?: boolean
           body?: Json
           category?: string
           cover_url?: string | null
@@ -289,6 +291,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_generated?: boolean
           body?: Json
           category?: string
           cover_url?: string | null
@@ -302,6 +305,36 @@ export type Database = {
           slug?: string
           status?: string
           title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blog_autopilot: {
+        Row: {
+          enabled: boolean
+          id: number
+          last_result: string | null
+          last_run_at: string | null
+          locked_until: string | null
+          paused_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: number
+          last_result?: string | null
+          last_run_at?: string | null
+          locked_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: number
+          last_result?: string | null
+          last_run_at?: string | null
+          locked_until?: string | null
+          paused_reason?: string | null
           updated_at?: string
         }
         Relationships: []
