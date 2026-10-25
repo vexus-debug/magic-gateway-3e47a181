@@ -13,6 +13,18 @@ export interface UpdateEntry {
 
 export const updates: UpdateEntry[] = [
   {
+    version: "v1.8.0",
+    date: "October 25, 2026",
+    title: "Blog autopilot, photos and calls to action",
+    kind: "feature",
+    items: [
+      { kind: "feature", text: "Daily autopilot writes and publishes one article per category." },
+      { kind: "feature", text: "Articles now include several photos, not just a cover." },
+      { kind: "feature", text: "Every article has a call-to-action banner mid-way and at the end." },
+      { kind: "improvement", text: "AI writing is warmer, speaks to one reader, and is tuned for Google search." },
+    ],
+  },
+  {
     version: "v1.7.0",
     date: "October 25, 2026",
     title: "AI Blog Studio for super admins",
