@@ -311,6 +311,7 @@ export type Database = {
       }
       blog_autopilot: {
         Row: {
+          cron_token: string
           enabled: boolean
           id: number
           last_result: string | null
@@ -320,6 +321,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          cron_token?: string
           enabled?: boolean
           id?: number
           last_result?: string | null
@@ -329,6 +331,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          cron_token?: string
           enabled?: boolean
           id?: number
           last_result?: string | null
